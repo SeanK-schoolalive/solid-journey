@@ -1,0 +1,495 @@
+{
+  "info": {
+    "_postman_id": "64c53340-5bae-4a2b-8131-416b3b904e3f",
+    "name": "CF7 Webhook Email Notifications",
+    "description": "# CF7 Webhook Email Notifications\n\nThis collection handles real-time form submission webhooks from WordPress sites using **Contact Form 7 (CF7)** and the **UACF7 (Ultra Addons for Contact Form 7)** plugin.\n\n## How it works\n\nWhen a visitor submits a Contact Form 7 form on your WordPress site, the UACF7 plugin fires a POST webhook to the configured endpoint. This collection receives that webhook, stores the form data, and automatically sends two emails via the [Resend](https://resend.com) API:\n\n1. A **staff notification** email to your team\n    \n2. A **confirmation email** back to the person who submitted the form\n    \n\n## WordPress Setup\n\n1. Install and activate **Contact Form 7** and **Ultra Addons for Contact Form 7 (UACF7)** on your WordPress site\n    \n2. In your WordPress admin, go to **Ultra Addons > All Addons** and enable the **Webhook** addon\n    \n3. Open your CF7 form and go to the **Ultra Addons for CF7 Options > Webhook** tab\n    \n4. Toggle **Enable Webhook** to ON\n    \n5. Set the **Request URL** to your endpoint (replace the mock URL with your production URL)\n    \n6. Set the **Request Method** to `POST`\n    \n7. Set the **Request Format** to `JSON`\n    \n8. In the **Request Body** section, map your CF7 fields: `your-name` → `name`, `your-email` → `email`, `your-message` → `message`\n    \n9. Save the form settings and submit a test entry to verify\n    \n\n## Required Variables\n\n| Variable | Description |\n| --- | --- |\n| `{{resend_api_key}}` | Your Resend API key (from resend.com/api-keys) |\n| `{{sender_email}}` | The From address — must be a verified domain in Resend |\n| `{{notification_email}}` | Staff email address to receive form submission alerts |\n\n## Expected Webhook Payload\n\n``` json\n{\n  \"name\": \"{{form_name}}\",\n  \"email\": \"{{form_email}}\",\n  \"message\": \"{{form_message}}\",\n  \"submitted_at\": \"{{submitted_at}}\"\n}\n\n ```",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "58683638",
+    "_collection_link": "https://go.postman.co/collection/58683638-64c53340-5bae-4a2b-8131-416b3b904e3f?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Receive Form Submission",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Parse the incoming form submission",
+              "const body = pm.request.body ? JSON.parse(pm.request.body.raw) : {};",
+              "",
+              "// Store form details as collection variables",
+              "pm.collectionVariables.set(\"form_name\", body.name || \"\");",
+              "pm.collectionVariables.set(\"form_email\", body.email || \"\");",
+              "pm.collectionVariables.set(\"form_message\", body.message || \"\");",
+              "pm.collectionVariables.set(\"submitted_at\", body.submitted_at || new Date().toISOString());",
+              "",
+              "const senderEmail = pm.collectionVariables.get(\"sender_email\");",
+              "const resendApiKey = pm.collectionVariables.get(\"resend_api_key\");",
+              "const formName = pm.collectionVariables.get(\"form_name\");",
+              "const formEmail = pm.collectionVariables.get(\"form_email\");",
+              "const formMessage = pm.collectionVariables.get(\"form_message\");",
+              "const submittedAt = pm.collectionVariables.get(\"submitted_at\");",
+              "const notificationEmail = pm.collectionVariables.get(\"notification_email\");",
+              "",
+              "// Send notification email to staff",
+              "pm.sendRequest({",
+              "    url: \"https://api.resend.com/emails\",",
+              "    method: \"POST\",",
+              "    header: {",
+              "        \"Content-Type\": \"application/json\",",
+              "        \"Authorization\": \"Bearer \" + resendApiKey",
+              "    },",
+              "    body: {",
+              "        mode: \"raw\",",
+              "        raw: JSON.stringify({",
+              "            from: senderEmail,",
+              "            to: [notificationEmail],",
+              "            subject: \"New Form Submission Received\",",
+              "            text: \"You have received a new form submission.\\n\\nName: \" + formName + \"\\nEmail: \" + formEmail + \"\\nMessage: \" + formMessage + \"\\nSubmitted at: \" + submittedAt",
+              "        })",
+              "    }",
+              "}, function(err, res) {",
+              "    if (err) {",
+              "        console.log(\"Staff notification email error:\", err);",
+              "    } else {",
+              "        console.log(\"Staff notification email sent:\", res.status);",
+              "    }",
+              "});",
+              "",
+              "// Send confirmation email to form submitter",
+              "pm.sendRequest({",
+              "    url: \"https://api.resend.com/emails\",",
+              "    method: \"POST\",",
+              "    header: {",
+              "        \"Content-Type\": \"application/json\",",
+              "        \"Authorization\": \"Bearer \" + resendApiKey",
+              "    },",
+              "    body: {",
+              "        mode: \"raw\",",
+              "        raw: JSON.stringify({",
+              "            from: senderEmail,",
+              "            to: [formEmail],",
+              "            subject: \"Form Submission Received\",",
+              "            text: \"Hey, thanks for reaching out!\\n\\nWe received your form submission and will be in touch soon.\\n\\nHere are the details you submitted:\\n\\nName: \" + formName + \"\\nEmail: \" + formEmail + \"\\nMessage: \" + formMessage + \"\\nSubmitted at: \" + submittedAt",
+              "        })",
+              "    }",
+              "}, function(err, res) {",
+              "    if (err) {",
+              "        console.log(\"Confirmation email error:\", err);",
+              "    } else {",
+              "        console.log(\"Confirmation email sent:\", res.status);",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{form_name}}\",\n  \"email\": \"{{form_email}}\",\n  \"message\": \"{{form_message}}\",\n  \"submitted_at\": \"{{submitted_at}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://980ab9a9-f0b6-438f-9119-08047564fd97.mock.pstmn.io/form-submission",
+          "protocol": "https",
+          "host": [
+            "980ab9a9-f0b6-438f-9119-08047564fd97",
+            "mock",
+            "pstmn",
+            "io"
+          ],
+          "path": [
+            "form-submission"
+          ]
+        },
+        "description": "Receives the webhook POST request fired by the **UACF7 (Ultra Addons for Contact Form 7)** plugin on your WordPress site whenever a visitor submits a Contact Form 7 form.\n\n### Trigger\nAutomatically called by UACF7 after a successful CF7 form submission. No manual invocation needed in production — use this request to test your webhook setup.\n\n### What happens after receiving\nThe post-response script:\n1. Parses the JSON body and stores `name`, `email`, `message`, and `submitted_at` as collection variables\n2. Fires a staff notification email via the Resend API\n3. Fires a confirmation email back to the form submitter\n\n### UACF7 Field Mapping\nIn your UACF7 webhook settings, map your CF7 fields to these JSON keys:\n\n| CF7 Field Tag | JSON Key |\n|---|---|\n| `[text* your-name]` | `name` |\n| `[email* your-email]` | `email` |\n| `[textarea your-message]` | `message` |\n\n### Mock Endpoint\nThe URL points to a Postman mock server for testing. Replace with your production endpoint URL when deploying."
+      },
+      "response": [
+        {
+          "name": "200 OK - Form Submission Received",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"message\": \"Hello, I'd like to get in touch.\",\n  \"submitted_at\": \"2026-10-02T13:46:26Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://980ab9a9-f0b6-438f-9119-08047564fd97.mock.pstmn.io/form-submission",
+              "protocol": "https",
+              "host": [
+                "980ab9a9-f0b6-438f-9119-08047564fd97",
+                "mock",
+                "pstmn",
+                "io"
+              ],
+              "path": [
+                "form-submission"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "cookie": [],
+          "body": "{\"success\": true, \"message\": \"Form submission received\"}"
+        },
+        {
+          "name": "400 Bad Request - Missing Required Fields",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"email\": \"\",\n  \"message\": \"\",\n  \"submitted_at\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/submit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "submit"
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "description": "",
+              "enabled": true
+            }
+          ],
+          "cookie": [],
+          "body": "{\"success\": false, \"message\": \"Bad Request: missing required fields. Expected: name, email, message.\"}"
+        }
+      ]
+    },
+    {
+      "name": "Send Email Notification",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{resend_api_key}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"from\": \"{{sender_email}}\",\n  \"to\": [\"{{notification_email}}\"],\n  \"subject\": \"New Form Submission Received\",\n  \"text\": \"You have received a new form submission.\\n\\nName: {{form_name}}\\nEmail: {{form_email}}\\nMessage: {{form_message}}\\nSubmitted at: {{submitted_at}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://api.resend.com/emails",
+          "protocol": "https",
+          "host": [
+            "api",
+            "resend",
+            "com"
+          ],
+          "path": [
+            "emails"
+          ]
+        },
+        "description": "Sends a notification email to your staff/team when a new Contact Form 7 submission is received via the UACF7 webhook.\n\n### Authentication\nUses Bearer token auth with `{{resend_api_key}}`. Set this variable in the collection before running.\n\n### Sender Requirements\nThe `{{sender_email}}` must be from a domain **verified in your Resend account**. Unverified domains will be rejected by Resend.\n\n### Variables Used\n| Variable | Description |\n|---|---|\n| `{{sender_email}}` | From address (must be Resend-verified) |\n| `{{notification_email}}` | Recipient — your staff/team email |\n| `{{form_name}}` | Submitter's name (set by Receive request) |\n| `{{form_email}}` | Submitter's email (set by Receive request) |\n| `{{form_message}}` | Submitter's message (set by Receive request) |\n| `{{submitted_at}}` | Submission timestamp (set by Receive request) |"
+      },
+      "response": [
+        {
+          "name": "200 OK - Email Sent",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{sender_email}}\",\n  \"to\": [\"{{notification_email}}\"],\n  \"subject\": \"New Form Submission Received\",\n  \"text\": \"You have received a new form submission.\\n\\nName: {{form_name}}\\nEmail: {{form_email}}\\nMessage: {{form_message}}\\nSubmitted at: {{submitted_at}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://980ab9a9-f0b6-438f-9119-08047564fd97.mock.pstmn.io/emails",
+              "protocol": "https",
+              "host": [
+                "980ab9a9-f0b6-438f-9119-08047564fd97",
+                "mock",
+                "pstmn",
+                "io"
+              ],
+              "path": [
+                "emails"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "cookie": [],
+          "body": "{\"id\": \"mock-email-id-001\", \"from\": \"noreply@example.com\", \"to\": [\"user@example.com\"], \"subject\": \"Form Submission Received\", \"status\": \"sent\"}"
+        },
+        {
+          "name": "401 Unauthorized - Invalid API Key",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{sender_email}}\",\n  \"to\": [\"{{notification_email}}\"],\n  \"subject\": \"New Form Submission Received\",\n  \"text\": \"You have received a new form submission.\\n\\nName: {{form_name}}\\nEmail: {{form_email}}\\nMessage: {{form_message}}\\nSubmitted at: {{submitted_at}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://api.resend.com/emails",
+              "protocol": "https",
+              "host": [
+                "api",
+                "resend",
+                "com"
+              ],
+              "path": [
+                "emails"
+              ]
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "description": "",
+              "enabled": true
+            }
+          ],
+          "cookie": [],
+          "body": "{\"statusCode\": 401, \"message\": \"API key is invalid\", \"name\": \"unauthorized\"}"
+        }
+      ]
+    },
+    {
+      "name": "Send Confirmation Email to Submitter",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{resend_api_key}}",
+            "disabled": false
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"from\": \"{{sender_email}}\", \"to\": [\"{{form_email}}\"], \"subject\": \"Form Submission Received\", \"text\": \"Hey, thanks for reaching out!\\n\\nWe received your form submission and will be in touch soon.\\n\\nHere are the details you submitted:\\n\\nName: {{form_name}}\\nEmail: {{form_email}}\\nMessage: {{form_message}}\\nSubmitted at: {{submitted_at}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://api.resend.com/emails",
+          "protocol": "https",
+          "host": [
+            "api",
+            "resend",
+            "com"
+          ],
+          "path": [
+            "emails"
+          ]
+        },
+        "description": "Sends an automatic confirmation email to the person who submitted the Contact Form 7 form via UACF7, letting them know their message was received.\n\n### Authentication\nUses `{{resend_api_key}}` passed as a Bearer token in the `Authorization` header.\n\n### Sender Requirements\nThe `{{sender_email}}` must be from a domain **verified in your Resend account**.\n\n### Variables Used\n| Variable | Description |\n|---|---|\n| `{{sender_email}}` | From address (must be Resend-verified) |\n| `{{form_email}}` | Recipient — the form submitter's email address |\n| `{{form_name}}` | Submitter's name, included in the email body |\n| `{{form_message}}` | Submitter's message, echoed back in the confirmation |\n| `{{submitted_at}}` | Submission timestamp |\n\n### Note\nThis request is triggered automatically by the post-response script on the **Receive Form Submission** request. You can also run it manually to test the confirmation email independently."
+      },
+      "response": [
+        {
+          "name": "200 OK - Confirmation Email Sent",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{sender_email}}\",\n  \"to\": [\"{{form_email}}\"],\n  \"subject\": \"Form Submission Received\",\n  \"text\": \"Hey, thanks for reaching out!\\n\\nWe received your form submission and will be in touch soon.\\n\\nHere are the details you submitted:\\n\\nName: {{form_name}}\\nEmail: {{form_email}}\\nMessage: {{form_message}}\\nSubmitted at: {{submitted_at}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://api.resend.com/emails",
+              "protocol": "https",
+              "host": [
+                "api",
+                "resend",
+                "com"
+              ],
+              "path": [
+                "emails"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "description": "",
+              "enabled": true
+            }
+          ],
+          "cookie": [],
+          "body": "{\"id\": \"email-id-placeholder\"}"
+        },
+        {
+          "name": "401 Unauthorized - Invalid API Key",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{sender_email}}\",\n  \"to\": [\"{{form_email}}\"],\n  \"subject\": \"Form Submission Received\",\n  \"text\": \"Hey, thanks for reaching out!\\n\\nWe received your form submission and will be in touch soon.\\n\\nHere are the details you submitted:\\n\\nName: {{form_name}}\\nEmail: {{form_email}}\\nMessage: {{form_message}}\\nSubmitted at: {{submitted_at}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://api.resend.com/emails",
+              "protocol": "https",
+              "host": [
+                "api",
+                "resend",
+                "com"
+              ],
+              "path": [
+                "emails"
+              ]
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "description": "",
+              "enabled": true
+            }
+          ],
+          "cookie": [],
+          "body": "{\"statusCode\": 401, \"message\": \"API key is invalid\", \"name\": \"unauthorized\"}"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "notification_email",
+      "value": "glyon@schoolalive.com"
+    },
+    {
+      "key": "sender_email",
+      "value": "contact@lyonconstruction.org"
+    },
+    {
+      "key": "form_name",
+      "value": ""
+    },
+    {
+      "key": "form_email",
+      "value": ""
+    },
+    {
+      "key": "form_message",
+      "value": ""
+    },
+    {
+      "key": "submitted_at",
+      "value": ""
+    },
+    {
+      "key": "resend_api_key",
+      "value": "re_ZPkjEszL_ABtKZoVpduLCKRbi8ozK8j6R",
+      "secret": true
+    }
+  ]
+}
